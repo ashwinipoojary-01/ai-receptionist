@@ -1,0 +1,154 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("ADMIN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Customer {
+  id            String         @id @default(uuid())
+  name          String
+  phone         String
+  email         String?
+  notes         String?
+  appointments  Appointment[]
+  conversations Conversation[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Business {
+  id           String        @id @default(uuid())
+  name         String        @default("NovaCare Clinic")
+  tagline      String?       @default("Premier Healthcare & Specialist Clinic")
+  description  String?       @default("Comprehensive medical consultations and specialized patient care available 24/7.")
+  phone        String        @default("+1 (555) 234-5678")
+  email        String        @default("care@novacareclinic.com")
+  address      String        @default("742 Evergreen Terrace, Suite 100, Springfield")
+  website      String?       @default("https://novacareclinic.com")
+  timezone     String        @default("America/New_York")
+  workingHours WorkingHour[]
+  services     Service[]
+  faqs         Faq[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model WorkingHour {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  dayOfWeek  Int      // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  dayName    String   // "Monday", "Tuesday", etc.
+  openTime   String   // "09:00"
+  closeTime  String   // "18:00"
+  isClosed   Boolean  @default(false)
+}
+
+model Service {
+  id           String        @id @default(uuid())
+  businessId   String
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  duration     Int           // in minutes, e.g., 30, 45
+  price        Float         @default(0.0)
+  active       Boolean       @default(true)
+  appointments Appointment[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Appointment {
+  id          String   @id @default(uuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  serviceId   String
+  service     Service  @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  date        String   // "YYYY-MM-DD"
+  startTime   String   // "HH:mm" (e.g., "14:30")
+  endTime     String   // "HH:mm" (e.g., "15:00")
+  status      String   @default("CONFIRMED") // CONFIRMED, PENDING, CANCELLED, COMPLETED, NO_SHOW
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date, startTime])
+}
+
+model Faq {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category   String   @default("General")
+  question   String
+  answer     String
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Conversation {
+  id            String        @id @default(uuid())
+  customerId    String?
+  customer      Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  channel       String        @default("WEB_CHAT") // "WEB_CHAT" | "VOICE"
+  status        String        @default("ACTIVE")   // "ACTIVE" | "COMPLETED" | "ESCALATED"
+  primaryIntent String?
+  confidence    Float?
+  summary       String?
+  priority      String        @default("MEDIUM")   // LOW, MEDIUM, HIGH, URGENT
+  messages      Message[]
+  handoff       HumanHandoff?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String       // USER, ASSISTANT, SYSTEM
+  content        String
+  intent         String?
+  entities       String?      // JSON string of extracted entities
+  toolCalls      String?      // JSON string of invoked tools and results
+  createdAt      DateTime     @default(now())
+}
+
+model HumanHandoff {
+  id             String       @id @default(uuid())
+  conversationId String       @unique
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  customerName   String?
+  customerPhone  String?
+  customerEmail  String?
+  reason         String
+  priority       String       @default("HIGH") // LOW, MEDIUM, HIGH, URGENT
+  status         String       @default("NEW")  // NEW, IN_PROGRESS, RESOLVED
+  resolutionNote String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  type      String   @default("APPOINTMENT") // "APPOINTMENT" | "HANDOFF" | "SYSTEM"
+  read      Boolean  @default(false)
+  metadata  String?  // JSON string payload
+  createdAt DateTime @default(now())
+}
